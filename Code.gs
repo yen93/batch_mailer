@@ -264,6 +264,7 @@ function validateMappingColumns_(mapping, headers) {
 
 function sendPersonalizedEmails_(sourceMessage, subject, sheetData, mapping) {
   var templateHtml = sourceMessage.getBody();
+  var attachments = sourceMessage.getAttachments({ includeInlineImages: false, includeAttachments: true });
   var headers = sheetData.headers;
   var rows = sheetData.rows;
 
@@ -297,7 +298,10 @@ function sendPersonalizedEmails_(sourceMessage, subject, sheetData, mapping) {
     });
 
     try {
-      GmailApp.sendEmail(recipient, subject, stripHtml_(personalizedHtml), { htmlBody: personalizedHtml });
+      GmailApp.sendEmail(recipient, subject, stripHtml_(personalizedHtml), {
+        htmlBody: personalizedHtml,
+        attachments: attachments,
+      });
       sent++;
     } catch (sendErr) {
       failures.push(recipient + ': ' + sendErr.message);

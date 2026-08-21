@@ -1,0 +1,30 @@
+================================================================================
+CHAT HISTORY EXPORT — 2026-08-21
+Session: Committed and pushed an in-progress code change (attachment support
+for the Personalized Batch Mailer) via the /dcp skill.
+================================================================================
+
+--------------------------------------------------------------------------------
+USER:
+Ran /dcp to save the chat and push updates to GitHub.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+This session's visible context contained only the /dcp invocation itself —
+no prior discussion. However, the working tree already had an uncommitted
+change to Code.gs (made earlier, outside this session's captured context):
+sendPersonalizedEmails_ now reads the source email's attachments via
+sourceMessage.getAttachments({ includeInlineImages: false,
+includeAttachments: true }) and passes them through on each personalized
+GmailApp.sendEmail call, so any file attachments on the original template
+email are now forwarded to every recipient, not just the HTML body.
+
+Followed the dcp skill: checked existing chat_history/ files to match format,
+confirmed the repo has an origin remote (https://github.com/yen93/
+batch_mailer.git) and is on branch main, reviewed the diff to confirm nothing
+sensitive was being staged, then committed the Code.gs change together with
+this chat-history file and pushed to origin/main.
+
+================================================================================
+END OF EXPORT
+================================================================================
