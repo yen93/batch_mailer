@@ -1,0 +1,171 @@
+================================================================================
+CHAT HISTORY EXPORT — 2026-08-21
+Session: Designed and built the Personalized Batch Mailer automation (Google Form
++ Apps Script + Supabase logging), then debugged it live through several rounds
+of real-world testing until it worked.
+================================================================================
+
+--------------------------------------------------------------------------------
+USER:
+Asked for a batch-mailer automation: a Google Form trigger where a requester
+provides (1) their email + other emails to notify on completion, (2) a link to
+a Google Sheet whose first column is recipient emails and remaining columns are
+placeholder replacement values, (3) the subject of an email they'd already sent
+to julienne@myadventuregroup.com.au (that email's body/subject becomes the
+template sent out), (4) the date (Philippine time) that email was sent, and
+(5) a free-text mapping of placeholder tokens to sheet column names. The
+process should log the request in Supabase, loop through the recipient list
+sending the personalized template to each individually, email a completion
+notice to the requester + notify list, and mark the Supabase row processed.
+Also asked two direct questions: can this fire the instant the form is
+submitted, and should this run on n8n (which they've used before) vs. Google
+Cloud (mentioning Cloud Scheduler) vs. something else.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Entered plan mode. Investigated the existing environment first: found the
+working directory was an empty, non-git folder; found an existing Supabase
+project ("MAGTestProject", id aivitcomiywiysrfwqxt) with many pre-existing
+tables from other automations; found an existing, simpler "Batch Mailer
+Trigger Form" + response sheet + Drive caching docs (an older, n8n-adjacent
+flow keyed off named "batches" pulling ActiveCampaign deal data) — unrelated
+to the new request but useful context; and found documentation showing the
+org's n8n instance runs self-hosted via Docker/WSL, started manually on a
+local machine (not always-on).
+
+Asked the user to choose the platform. Recommended Google Apps Script over
+n8n and over Cloud Functions/Run, and explained that Google Cloud Scheduler
+is cron-only and cannot react to a form submission at all — the user agreed
+to proceed with Apps Script. Also confirmed: list size is small (<100), so no
+batching/continuation logic is needed within Apps Script's 6-minute execution
+cap; and the user wants a brand-new, separate Form (not modifying the old
+one).
+
+Wrote a plan file covering: a new Google Form with six specific fields, a new
+Supabase logging table, and an Apps Script project bound to the form (running
+as julienne@myadventuregroup.com.au) that validates the submission, logs to
+Supabase, finds the source email in Julienne's Gmail by subject+date, reads
+the sheet, replaces placeholders, sends personalized emails one by one, sends
+a completion email, and updates the Supabase row to processed/error. Plan was
+approved.
+
+Began implementation. First attempt: tried to apply a Supabase migration
+creating a table named `batch_mailer_requests` — the user interrupted and
+said to keep everything new/separate and not touch anything existing, then
+clarified to reuse the existing Supabase project but add a genuinely new
+table. A check of the full table list revealed `batch_mailer_requests`
+already existed (backing the old batch-name flow) — so the new table was
+created instead as `personalized_batch_mailer_requests`, verified via
+list_tables, fully isolated from everything pre-existing. Surfaced (without
+acting on) a pre-existing, unrelated Supabase advisory that 11 other tables
+in the project have RLS disabled.
+
+Since no Google Forms API or Apps Script API was available as a tool, wrote
+the complete Apps Script logic to a local file, Code.gs, and gave the user
+manual steps to build the Form (exact field titles) and paste the script in,
+set Script Properties (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY), install the
+onFormSubmit installable trigger, and authorize it.
+
+--------------------------------------------------------------------------------
+USER:
+Reported the first live error: onFormSubmit threw "Cannot read properties of
+undefined (reading 'response')".
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Diagnosed: the function had been run manually from the Apps Script editor
+(no event object passed), not fired by a real form submission. Added a guard
+in readFormAnswers_ that throws a clear message instead of a cryptic stack
+trace in that situation, and told the user to check for/add the installable
+"On form submit" trigger and to test via a real form submission instead of
+the editor's Run button.
+
+--------------------------------------------------------------------------------
+USER:
+Reported a second error after that was fixed: "Placeholder mapping is empty
+or not in the expected format" despite entering "test = test" in that field.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Asked the user for the exact title of that form question. The user's answer
+revealed they had typed the format instructions directly into the question's
+title ("Placeholder to column mapping. Use this format: {first_name} = First
+Name, one per line.") rather than into a separate description field, so it no
+longer matched the script's hardcoded exact-title constant, causing a silent
+undefined lookup.
+
+Re-entered plan mode (triggered by the harness) to record this properly:
+updated the plan file's Supabase section to reflect the actual table name
+used, and added a new "Status & current bugfix" section describing the root
+cause and a general fix — replacing exact title matching with prefix matching
+for all six form fields (case-insensitive, trimmed, startsWith) — so future
+minor title edits/appended instructions on any field won't silently break
+things again. Plan approved; exited plan mode and implemented it: changed
+readFormAnswers_ to return a list of {title, response} pairs, added
+getAnswerByTitlePrefix_, and updated every lookup site (including the
+error-path lookups in the catch block) to use prefix matching with lowercase
+canonical prefixes.
+
+--------------------------------------------------------------------------------
+USER:
+Reported a third error: "Supabase insert failed: Forbidden use of secret API
+key in browser."
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Explained this is Supabase's newer "secret key" safety check, which blocks
+requests that look like they're coming from a browser — and that Apps
+Script's UrlFetchApp sends a default User-Agent starting with "Mozilla/5.0",
+tripping that heuristic even for a legitimate server-side call. Fixed by
+overriding the User-Agent header (to a custom, non-browser-looking value) on
+both Supabase fetch calls, and additionally suggested a fallback: switching
+to a legacy service_role JWT key (format eyJ...) instead of the new
+sb_secret_... key, since legacy JWTs aren't subject to that specific check.
+
+--------------------------------------------------------------------------------
+USER:
+Said they replaced the key with a "legacy JWT key" but it didn't start with
+"eyJ", and got a new error: "Invalid API key."
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Used the Supabase MCP tool to confirm the project does have an active legacy
+anon key (a real JWT starting with eyJ, decodable to role: "anon"), meaning a
+legacy service_role key should exist alongside it on the same dashboard page.
+Concluded the user had likely copied the "JWT Secret" (the signing secret,
+found in a different section of the same Settings page) instead of the actual
+service_role token, and pointed them to the correct location: Project
+Settings → API Keys → Legacy API Keys → the service_role/secret entry, which
+should also start with eyJ.
+
+--------------------------------------------------------------------------------
+USER:
+Reported the project is now working, mentioned they'd added a new "dcp"
+skill to the project folder (.claude/skills/dcp/SKILL.md — saves the chat
+transcript then commits and pushes to GitHub), and asked to run it, creating
+a new GitHub repo with the same name as the local folder.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Read the dcp skill definition. Checked for the GitHub CLI (gh) — not
+installed, and no GitHub MCP tool was available either, so repo creation
+itself couldn't be done via API; asked the user to create the empty repo on
+github.com and share the URL. The user created https://github.com/yen93/
+batch_mailer and shared it.
+
+Initialized a local git repo and added that URL as the "origin" remote.
+Found no git identity (user.name/user.email) configured anywhere on the
+machine — asked the user which email to attribute commits to. Instead of
+answering directly, the user pointed to a local file containing a GitHub
+fine-grained personal access token for authenticating the push. Read that
+token from the file (not pasted into the chat by the user), added the token
+file itself to a new .gitignore so it can never be committed, and set a
+repo-local (not global) git identity of name "yen93" / email
+julienne@myadventuregroup.com.au pending any correction from the user.
+Proceeding to write this chat-history file, commit, and push using the token
+for a one-off authenticated push without persisting it in the repo's saved
+git config.
+
+================================================================================
+END OF EXPORT
+================================================================================
