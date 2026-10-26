@@ -1,0 +1,67 @@
+================================================================================
+AS-BUILT — Personalized Batch Mailer
+Last updated: 2026-10-26
+================================================================================
+
+OVERVIEW
+- A Google Apps Script bound to the "Personalized Batch Mailer Request" Google
+  Form. On each form submission it: locates a source/template email in the
+  owner's own Gmail inbox (by subject + sent date), reads a recipient Google
+  Sheet, sends one personalized copy per row (placeholder -> column substitution,
+  forwarding the source email's attachments), emails the requester a
+  completion/failure summary, and logs the request + outcome to Supabase.
+- Runs as james@myadventuregroup.com.au (the Form owner), so GmailApp reads
+  James's inbox and sends as James. (Earlier docs said "julienne" — corrected
+  2026-10-26; it runs as James.)
+- This repo is the source of truth; deploy = paste Code.gs into the Form's bound
+  Apps Script project. No build step, package manager, or tests.
+
+SCRIPTS
+- Code.gs — onFormSubmit(e) is the entry point (installable "On form submit"
+  trigger). Flow: readFormAnswers_ / parseAndValidateAnswers_ -> insert a
+  'processing' row in Supabase -> findSourceEmail_ (GmailApp.search by subject,
+  to:me, +/- a few days, then exact PH-date match; errors if 0 or >1 match) ->
+  readSheet_ (first sheet, row 1 = headers) -> validateMappingColumns_ ->
+  sendPersonalizedEmails_ -> sendCompletionEmail_ -> update the Supabase row to
+  'processed' (or 'error' + message on failure, with a failure email to the
+  requester). Placeholder mapping is parsed from "{{placeholder}} = Column Name"
+  lines. Recipient column is the sheet's first column (must be a valid email).
+  Requires: Script Properties SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY; Apps
+  Script OAuth (Gmail read/send + external URL fetch), authorized as James.
+
+EXTERNAL INTEGRATIONS
+- Supabase (https://aivitcomiywiysrfwqxt.supabase.co) — REST/PostgREST. Inserts
+  and patches rows in public.personalized_batch_mailer_requests. Auth via the
+  service_role key in Script Property SUPABASE_SERVICE_ROLE_KEY (used as apikey +
+  Authorization: Bearer). A custom User-Agent (PersonalizedBatchMailer-AppsScript)
+  is set so Supabase doesn't treat the call as a blocked browser request.
+- Gmail (GmailApp / MailApp, as James) — reads the source template email + its
+  attachments, sends the personalized batch, and sends the completion/error
+  summary.
+- Google Sheets (SpreadsheetApp) — reads the recipient list from the sheet linked
+  in the form.
+
+DATA STORES (Supabase)
+- public.personalized_batch_mailer_requests — one row per form submission:
+  requester_email, notify_emails, sheet_url, email_subject, sent_date_ph,
+  placeholder_mapping_raw, status (processing/processed/error), total_recipients,
+  sent_count, skipped_count, error_message, processed_at.
+
+AUTOMATIONS / ROUTINES
+- onFormSubmit (Apps Script installable trigger, "From form / On form submit") —
+  the whole flow above, fired per Google Form submission.
+
+QUOTA NOTE
+- The mailer shares ONE per-account Apps Script Gmail quota pool with the
+  lead-response watchers (outbound_lead_response_automations,
+  process_leads_per_response), which also run as James. Those watchers' polling
+  frequency directly affects how much Gmail quota is left for a mailer run. On
+  2026-10-26 a mailer run failed with "Service invoked too many times for one day:
+  premium gmail" because the then every-minute watchers had drained the pool; the
+  watchers were slowed to every 5 minutes to fix it.
+
+OTHER
+- claude_code_automations_github_fine_grained_personal_access_token.txt — local
+  GitHub PAT file in the working tree; gitignored, must never be committed.
+- chat_history/ — per-session narrative logs (see the dcp skill).
+================================================================================

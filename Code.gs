@@ -1,8 +1,8 @@
 /**
  * Personalized Batch Mailer
  * Bound to the "Personalized Batch Mailer Request" Google Form.
- * Runs as julienne@myadventuregroup.com.au (the form owner) so it can
- * read her Gmail inbox and send mail as her.
+ * Runs as james@myadventuregroup.com.au (the form owner) so it can
+ * read his Gmail inbox and send mail as him.
  *
  * Setup (one-time, after pasting this file into the Form's Apps Script project):
  *  1. Project Settings > Script properties, add:
@@ -11,7 +11,7 @@
  *  2. Triggers (clock icon) > Add Trigger:
  *       Function: onFormSubmit | Event source: From form | Event type: On form submit
  *  3. Run any function once manually to trigger the OAuth consent screen
- *     (needs Gmail read/send + external URL fetch scopes), authorize as julienne.
+ *     (needs Gmail read/send + external URL fetch scopes), authorize as james.
  *
  * Form item titles are matched by PREFIX (case-insensitive, trimmed), not exact equality —
  * so appending extra instructions/punctuation to a question's title in the Form editor is safe
@@ -215,7 +215,7 @@ function findSourceEmail_(subject, sentDatePh) {
 
   if (matches.length === 0) {
     throw new Error(
-      'No email found in julienne@myadventuregroup.com.au\'s inbox with subject "' + subject +
+      'No email found in james@myadventuregroup.com.au\'s inbox with subject "' + subject +
       '" received on ' + wantedDateStr + ' (Philippine time).'
     );
   }

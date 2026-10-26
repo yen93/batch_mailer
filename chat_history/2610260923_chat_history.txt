@@ -1,0 +1,90 @@
+================================================================================
+CHAT HISTORY EXPORT — 2026-10-26
+Session: Diagnosed the Personalized Batch Mailer "Service invoked too many times
+         for one day: premium gmail" failure (shared Apps Script Gmail quota
+         drained by the always-on lead-response watchers, all running as James),
+         slowed both watchers to every 5 minutes, and corrected the mailer's
+         stale "runs as julienne" references to James.
+================================================================================
+
+--------------------------------------------------------------------------------
+USER:
+Reported the batch mailer failed — subject "TEST Bureau Batch Mailer (Pls
+Ignore)" — with "Service invoked too many times for one day: premium gmail."
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Read this project's Code.gs and identified the error as Apps Script's per-account
+DAILY Gmail quota — not a code bug, and not Gmail's own send limit. Noted the
+pre-send guard (MailApp.getRemainingDailyQuota, Code.gs ~line 272) only measures
+the recipient-send quota, so it can't catch the broader Gmail service-invocation
+limit (which reads also consume). The native error surfaced above the per-send
+try/catch, so the run almost certainly sent zero emails. Advised waiting for the
+~24h reset and retrying.
+
+--------------------------------------------------------------------------------
+USER:
+Clarified the mailer ran only once today, but there are other Apps Script Gmail
+watchers running continuously in the same account.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Explained Apps Script quotas are per-user and POOLED across all of an account's
+script projects, so the always-on watchers share the pool and were the likely
+drain.
+
+--------------------------------------------------------------------------------
+USER:
+Asked the PH reset time; whether it's a Gmail vs Apps Script limit (/q); and how
+many invocations per day are safe. Then pointed to the watchers at
+C:/Users/Cloverly/claude_code/gmail_watchers.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+- Reset: midnight US Pacific = ~3 PM PH through Oct 31, 2026 (PDT), ~4 PM PH from
+  Nov 2 (PST).
+- It's an Apps Script limit on the Gmail service (counts reads too); "premium
+  gmail" is Apps Script's label for the Gmail bucket on a Workspace account.
+- No published read ceiling; keep an account's reads in the low thousands/day.
+- Read both watchers: the two Gmail ones (outbound_lead_response_automations and
+  process_leads_per_response) run EVERY 1 MINUTE, ~2,880 runs/day combined,
+  ~11,500+ Gmail reads/day floor. process_bounced_leads_in_ac is a Supabase edge
+  function (no Gmail quota).
+
+--------------------------------------------------------------------------------
+USER:
+Corrected: the batch mailer runs as James (not Julienne).
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+That confirmed the mailer + both watchers share ONE account (James) / one Gmail
+pool, so the every-minute watchers are the cause. On the user's go-ahead, edited
+both watchers to every 5 minutes with ACTIVE_WINDOW_MINUTES 10 -> 15, cutting the
+combined floor from ~11,500 to ~2,300 reads/day. Created
+gmail_watchers/APPLY_TRIGGER_CHANGES_INSTRUCTIONS.txt and ran /dcp on both watcher
+folders. Flagged the mailer's stale "runs as julienne" comment.
+
+--------------------------------------------------------------------------------
+USER:
+Asked to fix the stale julienne comment in the mailer, then to /dcp the batch
+mailer folder too.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Corrected all four julienne references in batch_mailer/Code.gs to James:
+  - header "Runs as james@... read his Gmail inbox and send mail as him."
+  - setup note "authorize as james."
+  - the user-facing "No email found in james@...'s inbox" error message
+    (findSourceEmail_) — the only behavioural/user-visible one.
+Then ran /dcp on this folder: saved this chat history, created as_built.txt and
+CLAUDE.md for the project (first time), and confirmed .gitignore already covers
+the GitHub token file (claude_code_automations_github_fine_grained_personal_
+access_token.txt). No git commands were run — the user commits/pushes themselves.
+
+Reminder captured: the live trigger cadence only changes once James re-runs
+createEveryMinuteTrigger in each watcher project; the mailer Code.gs edits are
+cosmetic/string-only and need no re-authorization when pasted in.
+
+================================================================================
+END OF EXPORT
+================================================================================
